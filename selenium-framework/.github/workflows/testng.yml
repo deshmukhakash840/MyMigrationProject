@@ -1,0 +1,43 @@
+name: Run TestNG Tests - Selenium Web Framework
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Run Maven tests
+        run: mvn clean test -DsuiteXmlFile=src/test/resources/suites/testNG.xml
+        
+      - name: Upload Extent Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: extent-report
+          path: reports/
+      - name: Upload Logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+         name: execution-logs
+         path: logs/
+      - name: Upload Screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+         name: screenshots
+         path: screenshots/

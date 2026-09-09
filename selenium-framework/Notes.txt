@@ -1,0 +1,221 @@
+Question. Why not use Page Factory model?
+
+I've used PageFactory in the past, but I prefer Page Objects based on By locators and explicit waits. 
+It provides better synchronization, avoids stale element issues, and aligns with modern Selenium framework design.
+
+
+==============================================
+Question. What is TestContext class used? Why wasn't it used for sequential execution? 
+			Why used for parallel execution? 
+			If everything else is not kept as static then why TestContext threadlocal and methods are static?
+
+TestContext is nothing but a POJO
+Your listener needs to know: Which browser belongs to THIS thread? Which env belongs to THIS thread?
+Listener doesn't have access to your BaseTest object. So we need somewhere central to store:
+Thread 1 -> Chrome QA
+Thread 2 -> Firefox Stage
+That's what ThreadLocal TestContext does.
+Summarizing : We use TestContext.getContext().getBrowser() and TestContext.getContext().getEnv() 
+				throughout the framework to retrieve the browser and environment details. 
+				These values are stored in a TestContext object that is maintained 
+				separately for each thread using ThreadLocal, ensuring thread safety during parallel execution 
+				while also working correctly for single-threaded execution.
+
+If you don't use ThreadLocal for it then it can also be used for sequential execution.
+
+Because we don't want to create objects of this class everywhere, we keep the methods static.
+Static methods are fine here because: 'ThreadLocal holds the thread-specific data' not the static method itself.
+
+Note: Earlier we used to have BaseTest variables browserName, environment. 
+And all classes used to access the information by accessing these variables.
+Now, we implemented a better approach. To have a POJO and getters to access information of browserName, environment.
+
+
+==============================================
+Question. How does this framework ensure parallel execution?
+
+To support parallel execution, I moved execution-specific data such as browser and environment 
+into a ThreadLocal-backed TestContext. 
+This prevents data collisions between parallel threads and provides a centralized way for listeners, reports, utilities, and tests 
+to access execution context without relying on shared static variables.
+
+
+==============================================
+Question. Steps for creating framework for web portal
+
+Pre-requisite: Have Java installed and set it in the environment of system JAVA_HOME
+
+a) Create a GitHub repository
+b) Import the project in Eclipse IDE with Smart Git (put git clone url)
+c) Create a simple Maven project - with artifact and project ID as com.selenium.something
+d) Add dependencies of Selenium, TestNG, WebDriverManager and Extent Reports to pom.xml 
+	along with properties - maven.compiler.source as JDK version to be used
+e) Add urls along with env to Config.properties
+f) Add method to ConfigManager that parses which url to pick from properties file
+g) Add BaseTest for test-cases where BeforeSuite, BeforeMethod (Launch browser), AfterMethod (Quit browser) TestNG annotations are called
+h) Create DriverFactory where we handle launching drivers of different browsers, make it THREADSAFE by implementing ThreadLocal
+i) Add a testng.xml and add maven-surefire-plugin and ${suiteXmlFile} configuration in pom.xml
+j) Add parameters for browser and env in testng.xml 
+	and handle them in TestContext class (create a new one), make it THREADSAFE by implementing ThreadLocal
+	This TestContext class will handle parameters specific to tests tag in TestNG.xml. 
+	For example, one set of tests can execute on Chrome and other on Firefox. 
+	For such parameters/variables, we create this class with getters.
+	We call a method (setContext(TestContext testContext)) from TestBase -> BeforeMethod, 
+	and the above parameters info is sent to this class.
+k) Add TestNG listener class and add its entry under listeners in TestNG.xml
+l) Add Retry logic of test-cases implementing IAnnotationTransformer
+m) Add Utils package and create a class for report handling - ExtentManager, make it THREADSAFE by implementing ThreadLocal
+n) In Utils > create a class for handling Assertions where you assert and log to Extent reports
+o) Add the extent creation and handling in the TestNG listener class
+p) Create a Test-case where you launch a browser with the url and assert it
+q) Put the test-case name with package into TestNG.xml
+r) Under Utils > create a class ElementActions where we store wrappers for Selenium actions with Explicit waits,
+	scroll and JS related methods
+s) Create BasePage for pages, where we parameterize the constructor with WebDriver and initialize object of ElementActions
+	Add basic page related actions too like refresh, go forward, etc
+t) Create a package for Locators and create a file -> add a few locators as String
+u) Create a page extending BasePage, using By locator to get static locators elements 
+v) For handling dynamic locators, we create a class LocatorUtils under Utils
+w) Update test-case by calling methods from newly created page and add asserts
+x) Create ScreenshotUtil under Utils > call the function in TestNG listener in onTestFailure()
+y) Add loggers by adding the dependency (slf4j and logback) in pom.xml, LoggerUtil.java > Utils and log the actions in some page file.
+z) Before execution, ensure AfterMethod in TestBase as quit browser/driver code 
+	along with remove() thread called for DriverFactory and TestContext 
+	Similarly, in TestNG Listener onFinish() method, we call remove() for Extent thread
+
+==============================================
+Question. Steps to adding API to existing framework
+
+a) Add 'RestAssured' dependency to pom.xml
+b) Add urls along with env, API-keys if any to Config.properties
+c) Add method to ConfigManager that parses which url to pick from properties file
+d) Add base for API - set base url, set parameters via TestContext set base url, add Listeners annotation
+e) Add Client class having calls of Get, Post, Patch
+f) Add test-case calling the client methods with assertions
+g) Update AssertionUtils to have asserts for API
+h) Add an xml for API test-cases
+i) Update TestListener w.r.t browser and driver errors since they are null as web won't be executing
+
+==============================================
+Question. Steps to adding GitHub CI to existing framework
+
+a) Create folders -> .github/workflows/testng.yml
+b) Add contents in yaml file as -> 	Name of job, 
+									On which action we will trigger the job,
+									On which machine it will execute,
+									Steps of checking out code, setting up JDK and executing via mvn command
+									Also, add upload artifact step for extent reports and logger file
+c) Update the browsers configuration to support headless mode
+d) Put this parameter in testNG.xml and pass it to TestContext via TestBase
+
+Note: you can use and put each test-case into TestGroups and then execute testcases in a group via mvn command 
+mvn test -Dgroups=ui-smoke
+
+==============================================
+Question. Which branch does GitHub execute?
+
+Depends on your YAML.
+---------------------------------------------
+Example: 
+
+YAML below- 
+on:
+  push:
+    branches: [ main ]
+    
+    
+    
+    
+means: 	Push to main
+			↓
+		Workflow runs
+		
+but:	Push to feature branch
+				↓
+		Nothing happens
+---------------------------------------------
+		
+Now, If you configure: YAML below-
+on:
+  push:
+    branches:
+      - main
+      - develop
+      
+      
+then,
+		Push to main
+			↓
+			Run
+			
+		Push to develop
+			↓
+			Run
+---------------------------------------------
+
+Also, if you use: YAML below-
+
+on:
+  pull_request:
+    branches: [ main ]
+    
+    
+    
+then,
+
+		feature branch
+			↓
+		Create PR into main
+			↓
+		Workflow runs
+---------------------------------------------
+		
+Now, if you have both:
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    
+then, 
+		CI workflow executes when 	a) Pull Request Validation (runs the workflow against that merged code.)
+									b) After Merge (runs the workflow on main branch)
+		
+==============================================
+Question. Can we execute specific test-cases on CI automatically?
+-> Yes, we can.
+
+TestNG Groups is the industry standard way to organize tests.
+
+For execution, you can use 'mvn test -Dgroups=api-smoke' command (this is a sample command).
+
+You can have groups like - api-smoke, api-regression, ui-smoke, ui-regression, etc
+
+==============================================
+Question. How are Soft Asserts different than Hard Asserts. Why does Soft Assert needs to be Thread Safe?
+-> 	
+Hard Assert = instant check
+
+	Like a security guard: “Show me ID → OK / NOT OK → done”
+	No memory retained.
+	
+Soft Assert = checklist
+
+	Like a QA checklist:
+		Check login ✔
+		Check profile ✔
+		Check logout ❌
+	You must store all results until end.
+	Now imagine 2 testers sharing one checklist → chaos.
+	That’s why isolation is required.
+		
+Now the technical answer -> SoftAssert maintains internal state across multiple validations in a test. 
+							In parallel execution, this state can be corrupted if shared between threads. 
+							Hence we use ThreadLocal to isolate SoftAssert instances per test thread. 
+							Hard Assert is stateless and executes independently, so it doesn't require thread safety.
+
+==============================================
+
+
+

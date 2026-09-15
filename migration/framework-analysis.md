@@ -245,8 +245,8 @@ The source implements a small, direct Page Object Model:
 
 ## Missing items
 
-- No explicit project-level migration target directory for the new run yet.
-- No target TypeScript project exists under `playwright-framework-v2`.
+- No explicit project-level migration target directory for the new run beyond the active target workspace.
+- The active TypeScript target project is `playwright-framework`; the earlier `playwright-framework-v2` references were stale planning notes and do not reflect the current repository layout.
 - No migration implementation has been created for the first analysis phase.
 - No explicit source-to-target inventory file beyond the repository migration docs.
 - No orchestrated phase documentation for the new run yet.
@@ -283,7 +283,7 @@ The source implements a small, direct Page Object Model:
 - Create source-to-target mapping plan.
 - Stop after planning; no implementation.
 
-### Phase 1: Foundation setup in `playwright-framework-v2`
+### Phase 1: Foundation setup in `playwright-framework`
 - Initialize TypeScript + Playwright project structure.
 - Add config, fixtures, context, and test runner setup.
 - Preserve QA/PROD config intent without copying secrets into repo.
